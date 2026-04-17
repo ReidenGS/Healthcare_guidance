@@ -510,6 +510,13 @@ export const FollowUpView = ({ questions = [], confidence = 0.65, onSubmit }) =>
 
   useEffect(() => { setMounted(true); }, []);
 
+  // Accumulate confidence boost from selected symptoms (each boost is 1-4 percent)
+  const localBoostPercent = selected.reduce((sum, id) => {
+    const q = questions.find(q => q.id === id);
+    return sum + (q?.confidenceBoost || 1);
+  }, 0);
+  const displayedConfidencePercent = Math.min(100, Math.round(confidence * 100) + localBoostPercent);
+
   const toggle = (id) => {
     setNoneOfAbove(false); // deselect "none" when any symptom is chosen
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -530,9 +537,9 @@ export const FollowUpView = ({ questions = [], confidence = 0.65, onSubmit }) =>
         </div>
         <div className="flex items-center gap-4 w-1/2">
           <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden shadow-inner">
-            <div className="h-full rounded-full transition-all duration-1000 ease-out bg-blue-500" style={{width: `${confidence * 100}%`}} />
+            <div className="h-full rounded-full transition-all duration-500 ease-out bg-blue-500" style={{width: `${displayedConfidencePercent}%`}} />
           </div>
-          <span className="text-sm font-black text-slate-700">{Math.round(confidence * 100)}%</span>
+          <span className="text-sm font-black text-slate-700">{displayedConfidencePercent}%</span>
         </div>
       </div>
 
@@ -558,8 +565,13 @@ export const FollowUpView = ({ questions = [], confidence = 0.65, onSubmit }) =>
             >
               <div className="flex justify-between items-center">
                 <span className={`font-bold text-base ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>{q.text}</span>
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
-                  {isSelected && <CheckCircle2 size={16} className="text-white" />}
+                <div className="flex items-center gap-2">
+                  {isSelected && q.confidenceBoost > 1 && (
+                    <span className="text-xs font-bold text-green-600">+{q.confidenceBoost}%</span>
+                  )}
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                    {isSelected && <CheckCircle2 size={16} className="text-white" />}
+                  </div>
                 </div>
               </div>
             </button>
@@ -591,18 +603,26 @@ export const FollowUpView = ({ questions = [], confidence = 0.65, onSubmit }) =>
       <div style={{ transitionDelay: `${questions.length * 100 + 100}ms` }} className={`transition-all duration-700 transform ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <textarea
           className="w-full p-5 rounded-2xl border-2 border-gray-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all h-28 text-gray-800 resize-none text-base placeholder:text-gray-400 bg-white"
-          placeholder="Any additional symptoms or triggers not listed? (Optional)" 
-          value={additional} 
+          placeholder="Any additional symptoms or triggers not listed? (Optional)"
+          value={additional}
           onChange={e => setAdditional(e.target.value)}
         />
       </div>
 
-      <button
-        onClick={() => onSubmit?.({ selected, additional, noneOfAbove })} style={{ transitionDelay: `${questions.length * 100 + 200}ms` }}
-        className={`w-full font-bold py-5 rounded-[1.5rem] shadow-xl transition-all transform active:scale-[0.98] text-lg ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} ${noneOfAbove ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-400/20 text-white' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 text-white'}`}
-      >
-        {noneOfAbove ? 'Get Different Questions' : 'Submit Additional Information'}
-      </button>
+      <div className={`flex flex-col gap-3 transition-all duration-700 transform ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} style={{ transitionDelay: `${questions.length * 100 + 200}ms` }}>
+        <button
+          onClick={() => onSubmit?.({ selected, additional, noneOfAbove })}
+          className={`w-full font-bold py-5 rounded-[1.5rem] shadow-xl transition-all transform active:scale-[0.98] text-lg ${noneOfAbove ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-400/20 text-white' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 text-white'}`}
+        >
+          {noneOfAbove ? 'Get Different Questions' : 'Submit Additional Information'}
+        </button>
+        <button
+          onClick={() => onSubmit?.({ selected, additional, noneOfAbove: false, forceRecommend: true })}
+          className="w-full font-semibold py-3.5 rounded-[1.5rem] border-2 border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400 text-slate-600 transition-all transform active:scale-[0.98] text-sm"
+        >
+          I've described all my symptoms — get recommendation now
+        </button>
+      </div>
     </div>
   );
 };
@@ -1535,7 +1555,8 @@ export default function App() {
       );
       const normalizedQuestions = (response.questions || []).map((q) => ({
         id: q.question_id,
-        text: q.label
+        text: q.label,
+        confidenceBoost: q.confidence_boost || 1,
       }));
       setFollowUpQuestions(normalizedQuestions);
       if ((response.status || 'FOLLOW_UP') === 'TRIAGE_READY') {
@@ -1546,7 +1567,7 @@ export default function App() {
     });
   };
 
-  const handleFollowUpSubmit = async ({ selected, additional, noneOfAbove = false }) => {
+  const handleFollowUpSubmit = async ({ selected, additional, noneOfAbove = false, forceRecommend = false }) => {
     if (!sessionId) return;
     await runWithGuard(async () => {
       const allAnswers = followUpQuestions.map((q) => ({
@@ -1557,6 +1578,7 @@ export default function App() {
         answers: allAnswers,
         additional_note: additional,
         none_of_above: noneOfAbove,
+        force_recommend: forceRecommend,
       });
       setTriageConfidencePercent(
         Math.max(
@@ -1576,7 +1598,8 @@ export default function App() {
       if (response.status === 'FOLLOW_UP') {
         const normalizedQuestions = (response.questions || []).map((q) => ({
           id: q.question_id,
-          text: q.label
+          text: q.label,
+          confidenceBoost: q.confidence_boost || 1,
         }));
         setFollowUpQuestions(normalizedQuestions);
         setCurrentView('FOLLOW_UP');

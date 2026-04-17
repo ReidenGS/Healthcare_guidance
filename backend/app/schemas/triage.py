@@ -34,6 +34,7 @@ class FollowUpQuestion(BaseModel):
     input_type: Literal['boolean', 'single_select', 'multi_select', 'text', 'number'] = 'boolean'
     required: bool = True
     options: list[dict[str, str]] | None = None
+    confidence_boost: int = 1  # 1-4: selecting this symptom raises confidence by this many percent
 
 
 class CreateSessionResponse(BaseModel):
@@ -55,6 +56,7 @@ class SubmitAnswersRequest(BaseModel):
     answers: list[AnswerItem]
     additional_note: str | None = None
     none_of_above: bool = False
+    force_recommend: bool = False  # skip confidence gate; generate recommendation immediately
 
 
 class SubmitAnswersResponse(BaseModel):

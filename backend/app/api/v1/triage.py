@@ -130,6 +130,32 @@ def submit_session_answers(session_id: str, payload: SubmitAnswersRequest) -> Su
             questions=[],
         )
 
+    # ── "Force recommend" branch ────────────────────────────────────────────
+    # Patient clicked "I've described all my symptoms — get recommendation now".
+    # Skip the confidence gate and produce the recommendation immediately.
+    if payload.force_recommend:
+        existing_answers = store.answers.get(session_id, [])
+        current_answers = [a.model_dump() for a in payload.answers]
+        if payload.additional_note:
+            current_answers.append({'question_id': 'additional_note', 'value': payload.additional_note})
+        store.answers[session_id] = existing_answers + current_answers
+        recommendation = triage_agent.assess(session['symptom_input'], store.answers[session_id])
+        session['recommendation'] = recommendation
+        session['status'] = 'TRIAGE_READY'
+        session['confidence'] = recommendation['confidence']
+        session['confidence_percent'] = recommendation['confidence_percent']
+        session['risk_level'] = recommendation['risk_level']
+        session['timeline'].append({'event': 'FORCE_RECOMMEND_REQUESTED', 'at': store.now_iso()})
+        session['timeline'].append({'event': 'TRIAGE_READY', 'at': store.now_iso()})
+        return SubmitAnswersResponse(
+            session_id=session_id,
+            status='TRIAGE_READY',
+            confidence=recommendation['confidence'],
+            confidence_percent=recommendation['confidence_percent'],
+            risk_level=recommendation['risk_level'],
+            questions=[],
+        )
+
     # ── Normal answer submission ─────────────────────────────────────────────
     existing_answers = store.answers.get(session_id, [])
     current_answers = [a.model_dump() for a in payload.answers]

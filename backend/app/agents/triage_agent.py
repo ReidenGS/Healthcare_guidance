@@ -48,8 +48,11 @@ SYSTEM_PROMPT = (
     '  reasons           - list of 1-3 short strings explaining the routing decision\n'
     '  red_flags_detected - list of strings, empty list [] if none\n'
     '  likely_symptoms   - list of exactly 4 plausible additional symptoms to ask '
-    'when confidence is low; each MUST be a first-person declarative statement '
-    '(e.g. "I have nausea", "My pain worsens after meals"), NOT a question\n'
+    'when confidence is low; each item MUST be a JSON object with exactly two keys: '
+    '"label" (a first-person declarative statement, e.g. "I have nausea" — NOT a question) '
+    'and "confidence_boost" (an integer 1–4, where 4 = selecting this symptom would most '
+    'significantly narrow down the correct department, 1 = least helpful). '
+    'Every confidence_boost MUST be an integer between 1 and 4 inclusive.\n'
     'No markdown, no extra text outside the JSON object.'
 )
 
@@ -415,6 +418,10 @@ class TriageAgent:
 
         if not self._is_enabled():
             result = self._fallback_assess(symptom_input, answers)
+            # Normalize likely_symptoms to object format
+            result['likely_symptoms'] = [
+                {'label': s, 'confidence_boost': 1} for s in result['likely_symptoms']
+            ]
             # Merge RAG-confirmed red flags into fallback result
             if rag_confirmed_redflag and rag_conditions:
                 rag_flag = f'Matches known red-flag pattern: {", ".join(rag_conditions)}'
@@ -449,12 +456,26 @@ class TriageAgent:
             department = gpt_result['department']
             visit_needed = gpt_result['visit_needed']
 
-            likely = gpt_result['likely_symptoms']
-            likely = [x.strip() for x in likely if isinstance(x, str) and x.strip()][:4]
+            raw_likely = gpt_result['likely_symptoms']
+            likely: list[dict] = []
+            for item in raw_likely:
+                if isinstance(item, dict):
+                    label = self._to_first_person_statement(str(item.get('label', '')))
+                    boost = max(1, min(4, int(item.get('confidence_boost', 1) or 1)))
+                elif isinstance(item, str) and item.strip():
+                    label = self._to_first_person_statement(item)
+                    boost = 1
+                else:
+                    continue
+                if label:
+                    likely.append({'label': label, 'confidence_boost': boost})
             if len(likely) < 4:
                 fallback = self._fallback_assess(symptom_input, answers)
-                likely = fallback['likely_symptoms']
-            likely = [self._to_first_person_statement(x) for x in likely][:4]
+                for s in fallback['likely_symptoms']:
+                    if len(likely) >= 4:
+                        break
+                    likely.append({'label': s, 'confidence_boost': 1})
+            likely = likely[:4]
 
             # Confidence is entirely determined by GPT — no formula adjustments.
             calibrated_percent = percent
@@ -513,7 +534,8 @@ class TriageAgent:
         banned_symptoms: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         assessment = self.assess(symptom_input, answers)
-        likely_symptoms = assessment.get('likely_symptoms', [])
+        # likely_symptoms is now a list of {'label': str, 'confidence_boost': int}
+        likely_symptoms: list[dict] = assessment.get('likely_symptoms', [])
         asked_ids = set(asked_question_ids or [])
         banned = set(x for x in (banned_symptoms or []) if x)
 
@@ -527,28 +549,42 @@ class TriageAgent:
             'I feel faint when standing up.',
             'I have chest discomfort.',
         ]
-        pool: list[str] = []
-        for label in [self._to_first_person_statement(x) for x in likely_symptoms] + generic_backfill:
+
+        pool: list[dict] = []
+
+        for item in likely_symptoms:
+            label = item['label'] if isinstance(item, dict) else self._to_first_person_statement(str(item))
+            boost = max(1, min(4, int(item.get('confidence_boost', 1) or 1))) if isinstance(item, dict) else 1
             normalized = canonicalize_symptom_label(label)
-            if not normalized:
+            if not normalized or normalized in banned:
                 continue
-            if normalized in banned:
+            if any(canonicalize_symptom_label(x['label']) == normalized for x in pool):
                 continue
-            if any(canonicalize_symptom_label(x) == normalized for x in pool):
+            pool.append({'label': label, 'confidence_boost': boost})
+
+        for raw_label in generic_backfill:
+            if len(pool) >= 8:
+                break
+            label = self._to_first_person_statement(raw_label)
+            normalized = canonicalize_symptom_label(label)
+            if not normalized or normalized in banned:
                 continue
-            pool.append(label)
+            if any(canonicalize_symptom_label(x['label']) == normalized for x in pool):
+                continue
+            pool.append({'label': label, 'confidence_boost': 1})
 
         questions: list[dict[str, Any]] = []
-        for idx, symptom in enumerate(pool[:4], start=1):
+        for idx, item in enumerate(pool[:4], start=1):
             question_id = f'r{round_index}_q{idx}'
             if question_id in asked_ids:
                 continue
             questions.append(
                 {
                     'question_id': question_id,
-                    'label': symptom,
+                    'label': item['label'],
                     'input_type': 'boolean',
                     'required': True,
+                    'confidence_boost': item['confidence_boost'],
                 }
             )
 
