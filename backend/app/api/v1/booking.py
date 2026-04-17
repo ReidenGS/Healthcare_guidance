@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.schemas.booking import BookingIntentRequest, BookingIntentResponse, SessionSummaryResponse
 from app.services.provider_service import get_provider
+from app.services.slot_service import get_or_init_slots, mark_slot_booked
 from app.services.store import store
 
 router = APIRouter(prefix='/booking', tags=['booking'])
@@ -23,6 +24,18 @@ def _resolve_provider(provider_id: str, session: dict) -> dict:
     return {'provider_id': provider_id, 'name': 'Selected Provider', 'address': ''}
 
 
+@router.get('/slots')
+def get_provider_slots(provider_id: str = '') -> list[dict]:
+    """Return all time slots for a provider from the simulated hospital DB.
+
+    Slots are initialized on first access (stable per provider_id via deterministic seed)
+    and updated in real-time as bookings are confirmed.
+    """
+    if not provider_id:
+        raise HTTPException(status_code=422, detail='provider_id is required')
+    return get_or_init_slots(provider_id, store)
+
+
 @router.post('/intents', response_model=BookingIntentResponse)
 def create_booking_intent(payload: BookingIntentRequest) -> BookingIntentResponse:
     session = store.sessions.get(payload.session_id)
@@ -30,6 +43,15 @@ def create_booking_intent(payload: BookingIntentRequest) -> BookingIntentRespons
         raise HTTPException(status_code=404, detail='Session not found')
 
     provider = _resolve_provider(payload.provider_id, session)
+
+    # Mark the chosen slot as booked in the simulated hospital DB
+    if payload.slot_id:
+        success = mark_slot_booked(payload.provider_id, payload.slot_id, store)
+        if not success:
+            raise HTTPException(
+                status_code=409,
+                detail='This time slot has just been booked by someone else. Please go back and select another slot.',
+            )
 
     booking_intent_id = f"book_int_{uuid4().hex[:8]}"
     instructions = [

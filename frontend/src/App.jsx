@@ -5,6 +5,7 @@ import {
   createSession,
   geocodeLocation,
   getBookingRecords,
+  getProviderSlots,
   getRecommendation,
   getSummary,
   searchProviders,
@@ -1016,47 +1017,35 @@ export const InsuranceResultView = ({ providerName, insurancePlan, result, onBac
 
 // E. Booking Confirmation & Result Page (Stage 4)
 
-// Deterministically generate available / booked time slots for the next 3 days.
-// Slots that are "booked" are derived from a simple hash of the provider name so
-// the same provider always shows the same pattern — simulating a real hospital DB.
-function generateTimeSlots(providerName = '') {
-  const TIME_LABELS = [
-    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM',
-    '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
-  ];
-  // Simple hash so booked pattern is stable per provider
-  let hash = 0;
-  for (let i = 0; i < providerName.length; i++) hash = (hash * 31 + providerName.charCodeAt(i)) >>> 0;
-
-  const days = [];
-  const today = new Date();
-  for (let d = 0; d < 3; d++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + d + 1); // start from tomorrow
-    const dateLabel = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    const slots = TIME_LABELS.map((time, idx) => {
-      // Mark ~30% of slots as booked using hash + day + index
-      const booked = ((hash + d * 17 + idx * 7) % 10) < 3;
-      const iso = (() => {
-        const [h, m] = time.replace(/ AM| PM/, '').split(':').map(Number);
-        const isPM = time.includes('PM');
-        const dt = new Date(date);
-        dt.setHours(isPM && h !== 12 ? h + 12 : (!isPM && h === 12 ? 0 : h), m, 0, 0);
-        return dt.toISOString();
-      })();
-      return { time, iso, booked };
-    });
-    days.push({ dateLabel, slots });
+// Group a flat slot list from the backend into day buckets for display.
+function groupSlotsByDay(slots) {
+  const map = {};
+  for (const slot of slots) {
+    if (!map[slot.date_label]) map[slot.date_label] = [];
+    map[slot.date_label].push(slot);
   }
-  return days;
+  return Object.entries(map).map(([dateLabel, daySlots]) => ({ dateLabel, slots: daySlots }));
 }
 
 export const BookingView = ({ provider, onSubmit }) => {
   const [fullName, setFullName] = useState('Sarah Miller');
   const [phone, setPhone] = useState('138-0000-0000');
-  const [selectedSlot, setSelectedSlot] = useState(null); // { time, iso, dateLabel }
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [slotDays, setSlotDays] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsError, setSlotsError] = useState('');
 
-  const slotDays = React.useMemo(() => generateTimeSlots(provider?.name || ''), [provider?.name]);
+  // Fetch slots from the simulated hospital DB on the backend
+  useEffect(() => {
+    if (!provider?.provider_id) return;
+    setSlotsLoading(true);
+    setSlotsError('');
+    setSelectedSlot(null);
+    getProviderSlots(provider.provider_id)
+      .then(slots => setSlotDays(groupSlotsByDay(slots)))
+      .catch(() => setSlotsError('Could not load appointment slots. Please try again.'))
+      .finally(() => setSlotsLoading(false));
+  }, [provider?.provider_id]);
 
   const canSubmit = fullName.trim() && phone.trim() && selectedSlot;
 
@@ -1077,58 +1066,75 @@ export const BookingView = ({ provider, onSubmit }) => {
 
     {/* Time slot picker */}
     <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 pt-5 pb-3 border-b border-gray-50 flex items-center gap-2">
-        <Clock size={18} className="text-blue-500" />
-        <h3 className="text-base font-bold text-gray-800">Select an appointment time</h3>
-      </div>
-
-      {/* Legend */}
-      <div className="px-6 pt-3 pb-1 flex items-center gap-4 text-xs font-semibold text-gray-400">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />Available</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-200 inline-block" />Fully booked</span>
-        {selectedSlot && <span className="flex items-center gap-1.5 text-blue-600"><span className="w-3 h-3 rounded-full bg-blue-600 ring-2 ring-blue-200 inline-block" />Selected</span>}
-      </div>
-
-      <div className="px-6 pb-6 space-y-5 mt-3">
-        {slotDays.map(({ dateLabel, slots }) => (
-          <div key={dateLabel}>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{dateLabel}</p>
-            <div className="grid grid-cols-4 gap-2">
-              {slots.map(({ time, iso, booked }) => {
-                const isSelected = selectedSlot?.iso === iso;
-                return (
-                  <button
-                    key={iso}
-                    disabled={booked}
-                    onClick={() => setSelectedSlot({ time, iso, dateLabel })}
-                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all border ${
-                      booked
-                        ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed line-through'
-                        : isSelected
-                          ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/30 scale-105'
-                          : 'bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
-                    }`}
-                  >
-                    {booked ? (
-                      <span className="flex flex-col items-center gap-0.5">
-                        <span>{time}</span>
-                        <span className="text-[9px] font-semibold text-gray-300 not-italic normal-case" style={{textDecoration:'none'}}>Full</span>
-                      </span>
-                    ) : time}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Selected slot confirmation banner */}
-      {selectedSlot && (
-        <div className="mx-6 mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-sm font-bold text-blue-700">
-          <CheckCircle2 size={16} className="text-blue-500 shrink-0" />
-          Selected: {selectedSlot.dateLabel} · {selectedSlot.time}
+      <div className="px-6 pt-5 pb-3 border-b border-gray-50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock size={18} className="text-blue-500" />
+          <h3 className="text-base font-bold text-gray-800">Select an appointment time</h3>
         </div>
+        {slotsLoading && (
+          <span className="text-xs text-slate-400 font-semibold animate-pulse">Loading from hospital database…</span>
+        )}
+      </div>
+
+      {slotsError ? (
+        <div className="px-6 py-8 text-center text-sm font-semibold text-red-500">{slotsError}</div>
+      ) : slotsLoading ? (
+        <div className="px-6 py-10 flex flex-col items-center gap-3 text-slate-400">
+          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+          <span className="text-xs font-semibold">Fetching available slots…</span>
+        </div>
+      ) : (
+        <>
+          {/* Legend */}
+          <div className="px-6 pt-3 pb-1 flex items-center gap-4 text-xs font-semibold text-gray-400">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />Available</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-200 inline-block" />Fully booked</span>
+            {selectedSlot && <span className="flex items-center gap-1.5 text-blue-600"><span className="w-3 h-3 rounded-full bg-blue-600 ring-2 ring-blue-200 inline-block" />Selected</span>}
+          </div>
+
+          <div className="px-6 pb-4 space-y-5 mt-3">
+            {slotDays.map(({ dateLabel, slots }) => (
+              <div key={dateLabel}>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{dateLabel}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {slots.map((slot) => {
+                    const booked = slot.status === 'booked';
+                    const isSelected = selectedSlot?.slot_id === slot.slot_id;
+                    return (
+                      <button
+                        key={slot.slot_id}
+                        disabled={booked}
+                        onClick={() => setSelectedSlot(slot)}
+                        className={`py-2 px-1 rounded-xl text-xs font-bold transition-all border ${
+                          booked
+                            ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed'
+                            : isSelected
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/30 scale-105'
+                              : 'bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
+                        }`}
+                      >
+                        {booked ? (
+                          <span className="flex flex-col items-center gap-0.5">
+                            <span className="line-through">{slot.time_label}</span>
+                            <span className="text-[9px] font-semibold text-gray-300">Full</span>
+                          </span>
+                        ) : slot.time_label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Selected slot confirmation banner */}
+          {selectedSlot && (
+            <div className="mx-6 mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-sm font-bold text-blue-700">
+              <CheckCircle2 size={16} className="text-blue-500 shrink-0" />
+              Selected: {selectedSlot.date_label} · {selectedSlot.time_label}
+            </div>
+          )}
+        </>
       )}
     </div>
 
@@ -1146,7 +1152,7 @@ export const BookingView = ({ provider, onSubmit }) => {
     </div>
 
     <button
-      onClick={() => onSubmit?.({ full_name: fullName, phone }, selectedSlot?.iso)}
+      onClick={() => onSubmit?.({ full_name: fullName, phone }, selectedSlot?.iso, selectedSlot?.slot_id)}
       disabled={!canSubmit}
       className={`w-full font-bold py-5 rounded-[1.5rem] flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-lg ${
         canSubmit
@@ -1649,7 +1655,7 @@ export default function App() {
     });
   };
 
-  const handleBookingSubmit = async (patientContact, preferredTime) => {
+  const handleBookingSubmit = async (patientContact, preferredTime, slotId) => {
     if (!sessionId || !selectedProvider) return;
     const resolvedTime = preferredTime || selectedProvider.next_available_slot || new Date(Date.now() + 2 * 3600000).toISOString();
     await runWithGuard(async () => {
@@ -1657,6 +1663,7 @@ export default function App() {
         session_id: sessionId,
         provider_id: selectedProvider.provider_id,
         preferred_time: resolvedTime,
+        slot_id: slotId || null,
         patient_contact: patientContact,
         confirmation: {
           user_confirmed_details: true,

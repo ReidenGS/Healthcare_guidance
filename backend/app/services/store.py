@@ -13,6 +13,8 @@ class InMemoryStore:
         self.booking_intents: dict[str, dict[str, Any]] = {}
         # Simulated provider booking database — all confirmed appointments
         self.all_bookings: list[dict[str, Any]] = []
+        # Simulated hospital slot database — keyed by provider_id
+        self.provider_slots: dict[str, list[dict[str, Any]]] = {}
 
     def now_iso(self) -> str:
         return datetime.now().astimezone().isoformat()

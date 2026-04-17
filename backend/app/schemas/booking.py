@@ -16,6 +16,7 @@ class BookingIntentRequest(BaseModel):
     session_id: str
     provider_id: str
     preferred_time: str
+    slot_id: str | None = None   # slot identifier from the hospital DB
     patient_contact: PatientContact
     confirmation: BookingConfirmation
 

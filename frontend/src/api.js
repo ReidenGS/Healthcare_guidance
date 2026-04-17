@@ -118,3 +118,8 @@ export function getBookingRecords(phone) {
   const encoded = encodeURIComponent(phone.trim());
   return request(`/api/v1/booking/records?phone=${encoded}`);
 }
+
+export function getProviderSlots(providerId) {
+  const encoded = encodeURIComponent(providerId);
+  return request(`/api/v1/booking/slots?provider_id=${encoded}`);
+}
