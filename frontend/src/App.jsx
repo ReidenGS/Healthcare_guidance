@@ -1015,42 +1015,146 @@ export const InsuranceResultView = ({ providerName, insurancePlan, result, onBac
 };
 
 // E. Booking Confirmation & Result Page (Stage 4)
+
+// Deterministically generate available / booked time slots for the next 3 days.
+// Slots that are "booked" are derived from a simple hash of the provider name so
+// the same provider always shows the same pattern — simulating a real hospital DB.
+function generateTimeSlots(providerName = '') {
+  const TIME_LABELS = [
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM',
+    '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM',
+  ];
+  // Simple hash so booked pattern is stable per provider
+  let hash = 0;
+  for (let i = 0; i < providerName.length; i++) hash = (hash * 31 + providerName.charCodeAt(i)) >>> 0;
+
+  const days = [];
+  const today = new Date();
+  for (let d = 0; d < 3; d++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + d + 1); // start from tomorrow
+    const dateLabel = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const slots = TIME_LABELS.map((time, idx) => {
+      // Mark ~30% of slots as booked using hash + day + index
+      const booked = ((hash + d * 17 + idx * 7) % 10) < 3;
+      const iso = (() => {
+        const [h, m] = time.replace(/ AM| PM/, '').split(':').map(Number);
+        const isPM = time.includes('PM');
+        const dt = new Date(date);
+        dt.setHours(isPM && h !== 12 ? h + 12 : (!isPM && h === 12 ? 0 : h), m, 0, 0);
+        return dt.toISOString();
+      })();
+      return { time, iso, booked };
+    });
+    days.push({ dateLabel, slots });
+  }
+  return days;
+}
+
 export const BookingView = ({ provider, onSubmit }) => {
   const [fullName, setFullName] = useState('Sarah Miller');
   const [phone, setPhone] = useState('138-0000-0000');
+  const [selectedSlot, setSelectedSlot] = useState(null); // { time, iso, dateLabel }
+
+  const slotDays = React.useMemo(() => generateTimeSlots(provider?.name || ''), [provider?.name]);
+
+  const canSubmit = fullName.trim() && phone.trim() && selectedSlot;
 
   return (
-  <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto pt-4">
-    <div className="bg-blue-50 rounded-[2rem] p-8 border border-blue-100/50 shadow-inner">
-      <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 bg-blue-500 rounded-xl text-white shadow-md shadow-blue-500/30"><CalendarCheck size={28} /></div>
-        <h2 className="text-2xl font-black text-blue-900">Final intent confirmation</h2>
+  <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto pt-4">
+
+    {/* Provider card */}
+    <div className="bg-blue-50 rounded-[2rem] p-6 border border-blue-100/50 shadow-inner">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-3 bg-blue-500 rounded-xl text-white shadow-md shadow-blue-500/30"><CalendarCheck size={24} /></div>
+        <h2 className="text-xl font-black text-blue-900">Final intent confirmation</h2>
       </div>
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-blue-100/50 flex flex-col gap-2">
+      <div className="bg-white rounded-2xl px-5 py-4 shadow-sm border border-blue-100/50">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Selected Provider</span>
-        <p className="text-lg font-bold text-gray-900">{provider?.name || 'Selected medical provider'}</p>
-        <div className="mt-2 flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50/50 w-fit px-3 py-1.5 rounded-lg">
-          <Clock size={16} /> Suggested visit time: {provider?.next_available_slot || provider?.nextSlot || 'Today 3:30 PM'}
-        </div>
+        <p className="text-base font-bold text-gray-900 mt-1">{provider?.name || 'Selected medical provider'}</p>
       </div>
     </div>
 
-    <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
-      <h3 className="text-base font-bold text-gray-800 mb-2 flex items-center gap-2"><User size={20} className="text-blue-500"/> Patient Contact</h3>
-      <div className="space-y-5">
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Full Name</label>
-          <input type="text" className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500/50 text-base font-medium bg-gray-50 focus:bg-white transition-colors" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+    {/* Time slot picker */}
+    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 pt-5 pb-3 border-b border-gray-50 flex items-center gap-2">
+        <Clock size={18} className="text-blue-500" />
+        <h3 className="text-base font-bold text-gray-800">Select an appointment time</h3>
+      </div>
+
+      {/* Legend */}
+      <div className="px-6 pt-3 pb-1 flex items-center gap-4 text-xs font-semibold text-gray-400">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />Available</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-200 inline-block" />Fully booked</span>
+        {selectedSlot && <span className="flex items-center gap-1.5 text-blue-600"><span className="w-3 h-3 rounded-full bg-blue-600 ring-2 ring-blue-200 inline-block" />Selected</span>}
+      </div>
+
+      <div className="px-6 pb-6 space-y-5 mt-3">
+        {slotDays.map(({ dateLabel, slots }) => (
+          <div key={dateLabel}>
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{dateLabel}</p>
+            <div className="grid grid-cols-4 gap-2">
+              {slots.map(({ time, iso, booked }) => {
+                const isSelected = selectedSlot?.iso === iso;
+                return (
+                  <button
+                    key={iso}
+                    disabled={booked}
+                    onClick={() => setSelectedSlot({ time, iso, dateLabel })}
+                    className={`py-2 px-1 rounded-xl text-xs font-bold transition-all border ${
+                      booked
+                        ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed line-through'
+                        : isSelected
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/30 scale-105'
+                          : 'bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
+                    }`}
+                  >
+                    {booked ? (
+                      <span className="flex flex-col items-center gap-0.5">
+                        <span>{time}</span>
+                        <span className="text-[9px] font-semibold text-gray-300 not-italic normal-case" style={{textDecoration:'none'}}>Full</span>
+                      </span>
+                    ) : time}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Selected slot confirmation banner */}
+      {selectedSlot && (
+        <div className="mx-6 mb-5 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 text-sm font-bold text-blue-700">
+          <CheckCircle2 size={16} className="text-blue-500 shrink-0" />
+          Selected: {selectedSlot.dateLabel} · {selectedSlot.time}
         </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Phone Number</label>
-          <input type="tel" className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500/50 text-base font-medium bg-gray-50 focus:bg-white transition-colors" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </div>
+      )}
+    </div>
+
+    {/* Patient contact */}
+    <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-5">
+      <h3 className="text-base font-bold text-gray-800 flex items-center gap-2"><User size={18} className="text-blue-500"/> Patient Contact</h3>
+      <div>
+        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Full Name</label>
+        <input type="text" className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500/50 text-base font-medium bg-gray-50 focus:bg-white transition-colors" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Phone Number</label>
+        <input type="tel" className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-blue-500/50 text-base font-medium bg-gray-50 focus:bg-white transition-colors" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </div>
     </div>
 
-    <button onClick={() => onSubmit?.({ full_name: fullName, phone })} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-5 rounded-[1.5rem] shadow-xl shadow-green-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-lg">
-      Submit booking intent <CheckCircle2 size={24} />
+    <button
+      onClick={() => onSubmit?.({ full_name: fullName, phone }, selectedSlot?.iso)}
+      disabled={!canSubmit}
+      className={`w-full font-bold py-5 rounded-[1.5rem] flex items-center justify-center gap-2 transition-all active:scale-[0.98] text-lg ${
+        canSubmit
+          ? 'bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20'
+          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+      }`}
+    >
+      {canSubmit ? <><CheckCircle2 size={22} /> Confirm Booking Intent</> : 'Please select a time slot'}
     </button>
   </div>
   );
@@ -1545,13 +1649,14 @@ export default function App() {
     });
   };
 
-  const handleBookingSubmit = async (patientContact) => {
+  const handleBookingSubmit = async (patientContact, preferredTime) => {
     if (!sessionId || !selectedProvider) return;
+    const resolvedTime = preferredTime || selectedProvider.next_available_slot || new Date(Date.now() + 2 * 3600000).toISOString();
     await runWithGuard(async () => {
       const booking = await createBookingIntent({
         session_id: sessionId,
         provider_id: selectedProvider.provider_id,
-        preferred_time: selectedProvider.next_available_slot || new Date(Date.now() + 2 * 3600000).toISOString(),
+        preferred_time: resolvedTime,
         patient_contact: patientContact,
         confirmation: {
           user_confirmed_details: true,
@@ -1567,7 +1672,7 @@ export default function App() {
         care_path: recommendation?.care_path || '',
         patient_name: patientContact.full_name,
         phone: patientContact.phone,
-        preferred_time: selectedProvider.next_available_slot || new Date(Date.now() + 2 * 3600000).toISOString(),
+        preferred_time: resolvedTime,
         booked_at: new Date().toISOString(),
         status: 'CONFIRMED',
       };
