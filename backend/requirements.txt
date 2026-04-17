@@ -1,0 +1,11 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.8.2
+python-dotenv==1.0.1
+langchain==0.3.27
+langchain-openai==0.3.33
+langchain-google-genai==2.0.10
+requests==2.33.1
+# RAG red-flag service — openai client already bundled with langchain-openai
+# numpy is pulled in transitively; listed explicitly for clarity
+numpy>=1.26

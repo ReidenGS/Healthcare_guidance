@@ -1,0 +1,62 @@
+[
+  {
+    "insurer": "Aetna PPO",
+    "aliases": ["Aetna", "Aetna Choice POS II", "Aetna Open Choice PPO"],
+    "in_network_provider_ids": ["p1", "p3"],
+    "in_network_provider_names": ["City Urgent Care - Midtown", "Eastside Family Clinic"],
+    "in_network_provider_keywords": ["Orthopedic Health Center", "Family Clinic"],
+    "in_network_estimated_cost": {"currency": "USD", "min": 25, "max": 95},
+    "out_network_estimated_cost": {"currency": "USD", "min": 180, "max": 420},
+    "coverage_ratio": "About 75% - 90%",
+    "cost_breakdown_in_network": [
+      {"item": "Office visit copay", "range": "$25 - $45"},
+      {"item": "Basic imaging/lab after coverage", "range": "$0 - $35"},
+      {"item": "Medication copay", "range": "$5 - $20"}
+    ],
+    "cost_breakdown_out_network": [
+      {"item": "Specialist consultation (self-pay)", "range": "$90 - $160"},
+      {"item": "Lab tests / diagnostics (self-pay)", "range": "$70 - $190"},
+      {"item": "Medication (self-pay)", "range": "$40 - $90"}
+    ]
+  },
+  {
+    "insurer": "Blue Cross Blue Shield",
+    "aliases": ["BCBS", "Blue Shield", "Blue Cross"],
+    "in_network_provider_ids": ["p2"],
+    "in_network_provider_names": ["Metro General Hospital"],
+    "in_network_provider_keywords": ["General Hospital", "Medical Center"],
+    "in_network_estimated_cost": {"currency": "USD", "min": 30, "max": 110},
+    "out_network_estimated_cost": {"currency": "USD", "min": 190, "max": 460},
+    "coverage_ratio": "About 70% - 88%",
+    "cost_breakdown_in_network": [
+      {"item": "Office visit copay", "range": "$30 - $50"},
+      {"item": "Facility fee after coverage", "range": "$0 - $45"},
+      {"item": "Medication copay", "range": "$8 - $25"}
+    ]
+  },
+  {
+    "insurer": "UnitedHealthcare",
+    "aliases": ["United Healthcare", "UHC", "UnitedHealth"],
+    "in_network_provider_ids": ["p1", "p2"],
+    "in_network_provider_names": ["City Urgent Care - Midtown", "Metro General Hospital"],
+    "in_network_provider_keywords": ["Urgent Care", "Orthopedic Health Center"],
+    "in_network_estimated_cost": {"currency": "USD", "min": 20, "max": 90},
+    "out_network_estimated_cost": {"currency": "USD", "min": 185, "max": 430},
+    "coverage_ratio": "About 80% - 92%",
+    "cost_breakdown_in_network": [
+      {"item": "Office visit copay", "range": "$20 - $40"},
+      {"item": "Lab tests (after coverage)", "range": "$0 - $35"},
+      {"item": "Medication copay", "range": "$5 - $15"}
+    ]
+  },
+  {
+    "insurer": "Medicare / Medicaid",
+    "aliases": ["Medicare", "Medicaid"],
+    "in_network_provider_ids": ["p3"],
+    "in_network_provider_names": ["Eastside Family Clinic"],
+    "in_network_provider_keywords": ["Community Clinic", "Family Clinic"],
+    "in_network_estimated_cost": {"currency": "USD", "min": 15, "max": 75},
+    "out_network_estimated_cost": {"currency": "USD", "min": 170, "max": 410},
+    "coverage_ratio": "About 85% - 95%"
+  }
+]
