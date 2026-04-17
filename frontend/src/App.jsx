@@ -565,13 +565,8 @@ export const FollowUpView = ({ questions = [], confidence = 0.65, onSubmit }) =>
             >
               <div className="flex justify-between items-center">
                 <span className={`font-bold text-base ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>{q.text}</span>
-                <div className="flex items-center gap-2">
-                  {isSelected && q.confidenceBoost > 1 && (
-                    <span className="text-xs font-bold text-green-600">+{q.confidenceBoost}%</span>
-                  )}
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
-                    {isSelected && <CheckCircle2 size={16} className="text-white" />}
-                  </div>
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                  {isSelected && <CheckCircle2 size={16} className="text-white" />}
                 </div>
               </div>
             </button>

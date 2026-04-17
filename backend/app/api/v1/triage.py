@@ -130,6 +130,27 @@ def submit_session_answers(session_id: str, payload: SubmitAnswersRequest) -> Su
             questions=[],
         )
 
+    # ── Shared helper: apply confidence boost from selected symptoms ─────────
+    def _apply_boost(rec: dict, prev_percent: int) -> dict:
+        """Add per-symptom confidence boosts for selected answers and prevent regression."""
+        boost_map = {
+            q['question_id']: int(q.get('confidence_boost', 1) or 1)
+            for q in session.get('questions', [])
+        }
+        selected_boost = sum(
+            boost_map.get(a.question_id, 0)
+            for a in payload.answers
+            if a.value is True
+        )
+        # Never let confidence fall below previous value; then add selected boost
+        boosted = min(100, max(prev_percent, rec['confidence_percent']) + selected_boost)
+        rec = dict(rec)
+        rec['confidence_percent'] = boosted
+        rec['confidence'] = round(boosted / 100, 2)
+        return rec
+
+    prev_confidence_percent = int(session.get('confidence_percent', 0))
+
     # ── "Force recommend" branch ────────────────────────────────────────────
     # Patient clicked "I've described all my symptoms — get recommendation now".
     # Skip the confidence gate and produce the recommendation immediately.
@@ -140,6 +161,7 @@ def submit_session_answers(session_id: str, payload: SubmitAnswersRequest) -> Su
             current_answers.append({'question_id': 'additional_note', 'value': payload.additional_note})
         store.answers[session_id] = existing_answers + current_answers
         recommendation = triage_agent.assess(session['symptom_input'], store.answers[session_id])
+        recommendation = _apply_boost(recommendation, prev_confidence_percent)
         session['recommendation'] = recommendation
         session['status'] = 'TRIAGE_READY'
         session['confidence'] = recommendation['confidence']
@@ -164,6 +186,7 @@ def submit_session_answers(session_id: str, payload: SubmitAnswersRequest) -> Su
     store.answers[session_id] = existing_answers + current_answers
 
     recommendation = triage_agent.assess(session['symptom_input'], store.answers[session_id])
+    recommendation = _apply_boost(recommendation, prev_confidence_percent)
     if (
         recommendation['confidence_percent'] <= CONFIDENCE_TARGET_PERCENT
         and current_round < MAX_FOLLOW_UP_ROUNDS
