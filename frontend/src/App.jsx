@@ -47,13 +47,13 @@ import {
 
 /**
  * ==========================================
- * 1. 基础 UI 元素组件
+ * 1. Base UI Components
  * ==========================================
  */
 
 const DISCLAIMER = "This service provides AI care navigation guidance and is not a medical diagnosis.";
 
-// 顶部进度条组件
+// Top progress bar component
 export const ProgressBar = ({ currentStep }) => {
   const steps = [
     { statusList: ['PROFILE'], label: 'Profile', index: 0 },
@@ -94,7 +94,7 @@ export const ProgressBar = ({ currentStep }) => {
 
 /**
  * ==========================================
- * 2. 页面级视图组件
+ * 2. Page-level View Components
  * ==========================================
  */
 
@@ -521,7 +521,7 @@ export const FollowUpView = ({ questions = [], confidence = 0.65, onSubmit }) =>
 
   return (
     <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 max-w-2xl mx-auto pt-4">
-      {/* 动态置信度条 */}
+      {/* Dynamic confidence bar */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2 text-slate-600">
           <Activity size={18} className="text-blue-500" />
@@ -613,7 +613,7 @@ const CARE_PATH_LABELS = {
   SPECIALIST: 'Specialist',
 };
 
-// B. 分诊结论页 (阶段 2 - 高还原截图卡片)
+// B. Triage Result Page (Stage 2)
 export const RecommendationView = ({
   department = "Pending",
   carePath = "PRIMARY_CARE",
@@ -708,25 +708,25 @@ export const ProvidersView = ({ providers = [], onSelectProvider, onCheckInsuran
         </span>
       </div>
 
-      {/* 恢复With space-y-4 进行横向宽列表排版，弃用纵向挤压的 grid */}
+      {/* Wide list layout with space-y-4 */}
       <div className="space-y-5">
         {displayProviders.map((p, i) => (
           <div key={p.id} style={{ animationDelay: `${i * 100}ms` }} className="bg-white border border-gray-100 rounded-[1.5rem] p-6 hover:border-blue-300 hover:shadow-lg transition-all shadow-sm group animate-in fade-in slide-in-from-bottom-4">
             
             <div className="flex gap-5 mb-2">
-              {/* 左侧图标 */}
+              {/* Left icon */}
               <div className="p-4 bg-gray-50 rounded-2xl text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors shrink-0 h-fit">
                 <Building2 size={28} />
               </div>
               
-              {/* 右侧信息流 */}
+              {/* Right info column */}
               <div className="flex-1">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                   <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors text-xl leading-tight">{p.name}</h3>
                   <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1.5 rounded-lg w-fit shrink-0">{p.type}</span>
                 </div>
                 
-                {/* 距离与时间 横向铺开 */}
+                {/* Distance and time */}
                 <div className="flex flex-wrap items-center text-sm text-gray-500 gap-8 font-medium mb-1">
                   <span className="flex items-center gap-2"><MapPin size={16} className="text-blue-400" /> Distance {p.distance}</span>
                   <span className="flex items-center gap-2"><Clock size={16} className="text-amber-400" /> Earliest slot:{p.nextSlot}</span>
@@ -748,7 +748,7 @@ export const ProvidersView = ({ providers = [], onSelectProvider, onCheckInsuran
               </div>
             </div>
 
-            {/* 按钮区域：底部横向排列 */}
+            {/* Action buttons */}
             <div className="flex gap-4 mt-6 pt-5 border-t border-gray-50 sm:ml-[4.5rem]">
               <button 
                 onClick={() => onCheckInsurance?.(p.raw)} 
@@ -770,7 +770,7 @@ export const ProvidersView = ({ providers = [], onSelectProvider, onCheckInsuran
   );
 };
 
-// D1. 保险查询输入页
+// D1. Insurance Query – Input Page
 export const InsuranceView = ({ providerName, onQuery, initialPlan = '' }) => {
   const [selectedPlan, setSelectedPlan] = useState(initialPlan || "Unknown / Self-pay");
 
@@ -825,7 +825,7 @@ export const InsuranceView = ({ providerName, onQuery, initialPlan = '' }) => {
   );
 };
 
-// D2. 保险查询结果页
+// D2. Insurance Query – Result Page
 export const InsuranceResultView = ({ providerName, insurancePlan, result, onBackToProviders }) => {
   const [loading, setLoading] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
@@ -886,7 +886,7 @@ export const InsuranceResultView = ({ providerName, insurancePlan, result, onBac
                 </span>
             </div>
 
-            {/* 新增：预估费用计算明细 (折叠面板) */}
+            {/* Cost breakdown detail (collapsible) */}
             <div className="pt-4 border-t border-gray-100">
               <button 
                 onClick={() => setShowDetails(!showDetails)}
@@ -957,7 +957,7 @@ export const InsuranceResultView = ({ providerName, insurancePlan, result, onBac
               </span>
             </div>
             
-            {/* 新增：预估费用计算明细 (折叠面板) - 自费版 */}
+            {/* Cost breakdown detail (collapsible) – self-pay version */}
             <div className="pt-4 border-t border-gray-100">
               <button 
                 onClick={() => setShowDetails(!showDetails)}
@@ -1014,7 +1014,7 @@ export const InsuranceResultView = ({ providerName, insurancePlan, result, onBac
   );
 };
 
-// E. 预约Confirm与结果页 (阶段 4)
+// E. Booking Confirmation & Result Page (Stage 4)
 export const BookingView = ({ provider, onSubmit }) => {
   const [fullName, setFullName] = useState('Sarah Miller');
   const [phone, setPhone] = useState('138-0000-0000');
@@ -1056,7 +1056,7 @@ export const BookingView = ({ provider, onSubmit }) => {
   );
 };
 
-// F. 预约成功页
+// F. Booking Success Page
 export const SummaryView = ({ instructions = [], onRestart }) => (
   <div className="text-center py-16 space-y-8 animate-in zoom-in-95 duration-500 max-w-2xl mx-auto">
     <div className="w-32 h-32 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner border-[8px] border-green-100/50">
@@ -1203,7 +1203,7 @@ const ApiKeyModal = ({ onClose }) => {
 
 /**
  * ==========================================
- * 4. 桌面端双栏主架构 (Desktop Browser UI)
+ * 4. Main App Component
  * ==========================================
  */
 export default function App() {
@@ -1606,16 +1606,16 @@ export default function App() {
         </div>
       )}
 
-      {/* ================= 主容器 ================= */}
+      {/* ================= Main Container ================= */}
       <div className="w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col border border-slate-200 min-h-[750px]">
 
-        {/* 主要交互区 */}
+        {/* Main interaction area */}
         <div className="flex-1 flex flex-col relative bg-white">
           {loading && <AIAnalyzingOverlay currentView={currentView} />}
           
-          {/* Header & 进度条 */}
+          {/* Header & progress bar */}
           <div className="px-10 pt-5 pb-6 border-b border-gray-100 bg-white z-10 shadow-sm">
-            {/* 顶部工具栏：右侧 API Keys 按钮 */}
+            {/* Top toolbar: API Keys button */}
             <div className="flex justify-end mb-5">
               <button
                 onClick={() => setShowApiKeyModal(true)}
@@ -1629,7 +1629,7 @@ export default function App() {
             <ProgressBar currentStep={currentView} />
           </div>
 
-          {/* 核心内容流 */}
+          {/* Main content flow */}
           <div className="flex-1 px-8 py-8 overflow-y-auto custom-scrollbar relative bg-[#fcfdfd]">
             {currentView !== 'PROFILE' && currentView !== 'INTAKE' && currentView !== 'COMPLETED' && (
               <div className="mb-6 max-w-2xl mx-auto">

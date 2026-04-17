@@ -1,91 +1,154 @@
-# Healthcare-guidance
+# Healthcare Guidance
 
-基于你确认的前端页面（`front.jsx`）落地的全栈项目：
-- 前端：React + Vite + Tailwind（保留原始页面结构与交互）
-- 后端：FastAPI + LangChain 多 Agent
-  - Agent 1（GPT / ChatGPT）：症状分析与分诊推荐
-  - Agent 2（Gemini）：基于分诊结果进行机构搜索、保险与费用估算
-  - Google Maps skill：通过 Google Places API 搜索附近门诊/医院
+An AI-powered full-stack healthcare navigation app that helps patients identify the right medical department, find nearby providers, estimate insurance costs, and submit booking intents.
 
-## 目录
+- **Frontend**: React + Vite + Tailwind CSS
+- **Backend**: FastAPI + LangChain multi-agent
+  - Agent 1 (GPT / OpenAI): Symptom triage, confidence scoring, follow-up question generation
+  - Agent 2 (Gemini): Provider search guidance and insurance cost explanation
+  - Google Maps skill: Nearby clinic/hospital search via Google Places API
+
+---
+
+## Project Structure
 
 ```text
 Healthcare-guidance/
-  frontend/
-    src/App.jsx
-    src/api.js
-  backend/
-    app/main.py
-    app/api/v1/
-    app/agents/triage_agent.py
-    requirements.txt
-  docs/
-    frontend_落地架构.md
-    backend_落地架构.md
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx        # Main React component (all views & state machine)
+│   │   └── api.js         # API client (fetch wrapper + API key headers)
+│   ├── index.html
+│   └── package.json
+├── backend/
+│   ├── app/
+│   │   ├── main.py        # FastAPI app + CORS + API key middleware
+│   │   ├── agents/
+│   │   │   ├── triage_agent.py       # GPT triage & follow-up logic
+│   │   │   └── navigation_agent.py   # Gemini provider search
+│   │   ├── api/v1/        # Route handlers (triage, providers, insurance, booking, geo)
+│   │   ├── core/
+│   │   │   ├── config.py             # Settings from .env + effective key helpers
+│   │   │   └── request_context.py    # Per-request API key context vars
+│   │   └── services/      # Google Maps, Tavily, geocoding, insurance, etc.
+│   ├── .env.example
+│   └── requirements.txt
+├── docs/
+│   ├── frontend_architecture.md
+│   ├── backend_architecture.md
+│   └── business_logic.md
+└── modify/                # Date-based changelogs
 ```
 
-## 功能流（已落地）
+---
 
-1. `INTAKE` 症状输入
-2. `FOLLOW_UP` 追问
-3. `TRIAGE_READY` 推荐确认（同意/不同意）
-4. `PROVIDER_MATCHED` 机构匹配
-5. `INSURANCE` 保险查询
-6. `INSURANCE_RESULT` 结果展示
-7. `BOOKING` 预约意向提交
-8. `COMPLETED` 完成页
+## Patient Flow
 
-## 后端启动
+| Step | View | Description |
+|------|------|-------------|
+| 1 | `PROFILE` | Collect age, sex, insurance plan, and location |
+| 2 | `INTAKE` | Submit chief complaint and severity score |
+| 3 | `FOLLOW_UP` | AI-guided symptom selection (up to 8 rounds) |
+| 4 | `TRIAGE_READY` | Review AI department recommendation |
+| 5 | `PROVIDER_MATCHED` | Browse matched providers near you |
+| 6 | `INSURANCE` | Select insurance plan for cost estimation |
+| 7 | `INSURANCE_RESULT` | View in-network status and cost breakdown |
+| 8 | `BOOKING` | Submit booking intent |
+| 9 | `COMPLETED` | Confirmation and post-visit instructions |
+
+Special branches:
+- `ESCALATED` — High-risk red-flag symptoms detected; emergency guidance shown immediately.
+- `TRIAGE_READY` self-care branch — If `Primary Care + visit_needed=false`, skip provider flow and return home.
+
+---
+
+## Getting Started
+
+### Backend
 
 ```bash
-cd /Users/jackiewen/Documents/IBM-violet-trio/Healthcare-guidance/backend
+cd Healthcare-guidance/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# 填写 OPENAI_API_KEY / GEMINI_API_KEY / GOOGLE_MAPS_API_KEY
+# Fill in your API keys in .env (see below)
 python run.py
 ```
 
-服务默认地址：`http://127.0.0.1:8000`
+Backend runs at `http://127.0.0.1:8000`
 
-## 前端启动
+### Frontend
 
 ```bash
-cd /Users/jackiewen/Documents/IBM-violet-trio/Healthcare-guidance/frontend
+cd Healthcare-guidance/frontend
 npm install
 npm run dev
 ```
 
-前端默认地址：`http://127.0.0.1:5173`
+Frontend runs at `http://127.0.0.1:5173`
 
-可选环境变量（前端）：
-- `VITE_API_BASE_URL`，默认 `http://127.0.0.1:8000`
+Optional env variable: `VITE_API_BASE_URL` (default: `http://127.0.0.1:8000`)
 
-## 已实现 API
+---
 
-- `POST /api/v1/triage/sessions`
-- `POST /api/v1/triage/sessions/{session_id}/answers`
-- `GET /api/v1/triage/sessions/{session_id}/recommendation`
-- `POST /api/v1/triage/sessions/{session_id}/recommendation-feedback`
-- `POST /api/v1/providers/search`
-- `POST /api/v1/insurance/check`
-- `POST /api/v1/booking/intents`
-- `GET /api/v1/triage/sessions/{session_id}/summary`
-- `GET /api/health`
+## Environment Variables (`.env`)
 
-## LangChain 多 Agent 说明
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
 
-- GPT Triage Agent: `backend/app/agents/triage_agent.py`
-  - 负责接收患者描述与追问答案，产出 `department/care_path/reasons/risk_level`
-- Gemini Navigation Agent: `backend/app/agents/navigation_agent.py`
-  - 负责接收 GPT 分析结果，做机构搜索与保险金额估算
-- Google Maps skill: `backend/app/services/google_maps_skill.py`
-  - 有 `GOOGLE_MAPS_API_KEY` 时调用 Google Places
-  - 无 key 时回退到本地 provider 数据
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-1.5-flash
 
-## 注意事项
+GOOGLE_MAPS_API_KEY=AIzaSy...
+TAVILY_API_KEY=tvly-...
+```
 
-1. 当前 provider 与保险估算为 MVP mock 数据，结构已按前端页面需要对齐。
-2. 医疗建议仅为导诊，不是医学诊断。
-3. 若检测到高危症状（red flags），前端会进入 `ESCALATED` 提示。
+> Keys set in `.env` are the server defaults. Users can override them at runtime via the **API Keys** button in the app UI — no restart required.
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/triage/sessions` | Create a new triage session |
+| `POST` | `/api/v1/triage/sessions/{id}/answers` | Submit follow-up answers |
+| `GET`  | `/api/v1/triage/sessions/{id}/recommendation` | Get department recommendation |
+| `POST` | `/api/v1/triage/sessions/{id}/recommendation-feedback` | Agree / Disagree with recommendation |
+| `POST` | `/api/v1/providers/search` | Search nearby providers |
+| `POST` | `/api/v1/insurance/check` | Check insurance coverage and estimate costs |
+| `POST` | `/api/v1/booking/intents` | Submit a booking intent |
+| `GET`  | `/api/v1/triage/sessions/{id}/summary` | Get full session summary |
+| `POST` | `/api/v1/geo/geocode` | Geocode a location string to lat/lng |
+| `GET`  | `/api/health` | Health check |
+
+---
+
+## Multi-Agent Architecture
+
+| Agent | Model | Responsibility |
+|-------|-------|----------------|
+| Triage Agent | GPT (OpenAI) | Symptom analysis, department routing, confidence scoring, follow-up question generation |
+| Navigation Agent | Gemini (Google) | Provider search query generation, insurance cost explanation |
+
+Supporting skills:
+- **Google Maps skill** (`google_maps_skill.py`) — Searches nearby clinics via Google Places; falls back to local provider data if no API key.
+- **Tavily search skill** (`web_search_skill.py`) — Optional symptom-to-department reference lookup.
+- **Geocode service** (`geocode_service.py`) — Converts address / city / ZIP to lat/lng; falls back to public API or city lookup table.
+- **Red-flag RAG** (`redflag_rag.py`) — Offline vector store for emergency symptom detection.
+
+---
+
+## Runtime API Key Override
+
+Users can provide their own API keys through the **API Keys** button in the top-right corner of the app. Keys are stored in `localStorage` and sent as custom request headers (`X-OpenAI-Key`, `X-Google-Maps-Key`, `X-Gemini-Key`, `X-Tavily-Key`). The backend middleware reads these headers and overrides the `.env` defaults for that request only.
+
+---
+
+## Notes
+
+1. Provider data and insurance cost estimates are mock/demo data structured to match the frontend UI.
+2. This service is for AI-assisted care navigation only — **not a medical diagnosis**.
+3. If high-risk symptoms (red flags) are detected, the app immediately shows emergency guidance (`ESCALATED` view).
